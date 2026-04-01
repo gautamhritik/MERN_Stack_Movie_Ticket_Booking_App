@@ -230,14 +230,14 @@ const sendShowReminders = inngest.createFunction(
                         is scheduled for 
                         <strong>
                          ${new Date(task.showTime).toLocaleDateString("en-US", {
-              timeZone: "Asia/Kolkata",
-            })}
+                          timeZone: "Asia/Kolkata",
+                        })}
                         </strong>
                         at 
                         <strong>
                           ${new Date(task.showTime).toLocaleTimeString("en-US", {
-              timeZone: "Asia/Kolkata",
-            })}
+                          timeZone: "Asia/Kolkata",
+                        })}
                         </strong>.
                       </p>
                             

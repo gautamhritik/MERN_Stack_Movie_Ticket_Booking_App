@@ -11,6 +11,7 @@ import adminRouter from "./routes/adminRoutes.js";
 import userRouter from "./routes/userRoutes.js";
 import { stripeWebhooks } from "./controllers/stripeWebhooks.js";
 
+
 const app = express();
 const port = 3000;
 
@@ -18,6 +19,8 @@ await connectDB();
 
 // Stripe Webhooks
 app.use("/api/stripe", express.raw({ type: "application/json" }), stripeWebhooks);
+
+
 
 // Middleware
 app.use(express.json());

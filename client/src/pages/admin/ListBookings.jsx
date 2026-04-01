@@ -19,6 +19,7 @@ const ListBookings = () => {
       const { data } = await axios.get("/api/admin/all-bookings", {
         headers: {
           Authorization: `Bearer ${await getToken()}`,
+          "Cache-Control": "no-cache"
         },
       });
 
@@ -52,7 +53,7 @@ const ListBookings = () => {
             </tr>
           </thead>
           <tbody className="text-sm font-light">
-            {bookings.map((item, index) => (
+            {Array.isArray(bookings) && bookings.map((item, index) => (
               <tr
                 key={index}
                 className="border-b border-primary/20 bg-primary/5 even:bg-primary/10"
