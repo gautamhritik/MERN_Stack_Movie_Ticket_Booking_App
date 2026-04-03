@@ -39,14 +39,29 @@ export const stripeWebhooks = async (request, response) => {
                 });
 
                 // Send Confirmation Email
+                const booking = await Booking.collection.findOne({
+                    _id: new mongoose.Types.ObjectId(bookingId),
+                });
+
+                const show = await Show.findById(booking.show).populate("movie");
+
+                const user = await User.collection.findOne({
+                    id: booking.user,
+                });
+
                 await inngest.send({
                     name: "app/show.booked",
-                    data: {bookingId},
-                })
+                    data: {
+                        userEmail: user.email,
+                        userName: user.name,
+                        movieTitle: show.movie.title,
+                        showTime: show.showDateTime,
+                    },
+                });
 
                 break;
             }
-            
+
             default:
                 console.log("Unhandled event type:", event.type);
         }
