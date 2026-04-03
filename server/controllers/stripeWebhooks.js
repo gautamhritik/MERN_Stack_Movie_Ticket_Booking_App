@@ -1,6 +1,9 @@
 import stripe from "stripe";
 import Booking from "../models/Booking.js";
 import { inngest } from "../inngest/index.js";
+import Show from "../models/Show.js";
+import User from "../models/User.js";
+import mongoose from "mongoose";
 
 export const stripeWebhooks = async (request, response) => {
     const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
