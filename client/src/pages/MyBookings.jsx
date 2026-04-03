@@ -55,23 +55,23 @@ const MyBookings = () => {
       {bookings.map((item, index) => (
         <div
           key={index}
-          className="flex items-center gap-5 bg-primary/10 border border-primary/20 rounded-xl mt-6 px-6 py-5 max-w-3xl w-full"
+          className="flex items-center bg-gradient-to-r from-[#2a0f0f] to-[#3a1414] border border-[#ff4d4d33] rounded-xl mt-6 px-5 py-4 gap-4 max-w-2xl w-full hover:scale-[1.01] transition duration-300"
         >
 
           <img
             src={image_base_url + item.show.movie.poster_path}
             alt=""
-            className="w-48 h-24 object-cover rounded-md"
+            className="w-32 h-20 object-cover rounded-lg"
           />
 
           <div className="flex-1 flex flex-col justify-center gap-1">
-            <p className="text-base font-semibold">
+            <p className="text-lg font-semibold">
               {item.show.movie.title}
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="text-xs text-gray-400">
               {timeFormat(item.show.movie.runtime)}
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="text-xs text-gray-400">
               {dateFormat(item.show.showDateTime)}
             </p>
           </div>
@@ -92,7 +92,7 @@ const MyBookings = () => {
             </div>
 
             {/* Details */}
-            <div className="text-sm text-right space-y-1">
+            <div className="text-xs text-right space-y-0.5">
               <p>
                 <span className="text-gray-400">Total Tickets :</span>{" "}
                 {item.bookedSeats.length}

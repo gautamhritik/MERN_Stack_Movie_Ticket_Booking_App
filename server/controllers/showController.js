@@ -153,3 +153,37 @@ export const getShow = async (req, res) => {
     res.json({ success: false, message: error.message });
   }
 };
+
+// API to get movie trailer from TMDB API
+export const getMovieTrailer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data } = await axios.get(
+      `https://api.themoviedb.org/3/movie/${id}/videos`,
+      {
+        proxy: false,
+        timeout: 10000,
+        headers: {
+          Authorization: `Bearer ${process.env.TMDB_API_KEY}`
+        }
+      }
+    );
+
+    const trailer = data.results.find(
+      (vid) =>
+        vid.type === "Trailer" &&
+        vid.site === "YouTube" &&
+        vid.official === true
+    );
+
+    res.json({
+      success: true,
+      trailer: trailer || null
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.json({ success: false, message: error.message });
+  }
+};

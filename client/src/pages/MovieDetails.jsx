@@ -15,6 +15,8 @@ const MovieDetails = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [show, setShow] = useState(null);
+  const [trailerKey, setTrailerKey] = useState(null);
+  const [showTrailer, setShowTrailer] = useState(false);
 
   const {
     shows,
@@ -32,6 +34,18 @@ const MovieDetails = () => {
 
       if (data.success) {
         setShow(data);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const getTrailer = async () => {
+    try {
+      const { data } = await axios.get(`/api/show/movie/${id}/trailer`);
+
+      if (data.success && data.trailer) {
+        setTrailerKey(data.trailer.key);
       }
     } catch (error) {
       console.log(error);
@@ -62,8 +76,17 @@ const MovieDetails = () => {
   };
 
   useEffect(() => {
-    getShow();
+    const fetchData = async () => {
+      await getShow();
+    };
+    fetchData();
   }, [id]);
+
+  useEffect(() => {
+    if (show?.movie?._id) {
+      getTrailer();
+    }
+  }, [show?.movie?._id]);
 
   return show ? (
     <div className="px-6 md:px-16 lg:px-40 pt-32 md:pt-48">
@@ -98,7 +121,11 @@ const MovieDetails = () => {
 
           <div className="flex items-center flex-wrap gap-4 mt-4">
 
-            <button className="flex items-center gap-2 px-7 py-3 text-sm bg-gray-800 hover:bg-gray-900 transition rounded-md font-medium cursor-pointer active:scale-95">
+            <button
+              onClick={() => setShowTrailer(true)}
+              disabled={!trailerKey}
+              className="flex items-center gap-2 px-7 py-3 text-sm bg-gray-800 hover:bg-gray-900 transition rounded-md font-medium cursor-pointer active:scale-95 disabled:opacity-50"
+            >
               <PlayCircleIcon className="w-5 h-5" />
               Watch Trailer
             </button>
@@ -121,8 +148,8 @@ const MovieDetails = () => {
             >
               <Heart
                 className={`w-5 h-5 ${favoriteMovies.find((movie) => movie._id === id)
-                    ? "fill-primary text-primary"
-                    : ""
+                  ? "fill-primary text-primary"
+                  : ""
                   }`}
               />
             </button>
@@ -161,6 +188,27 @@ const MovieDetails = () => {
           Show more
         </button>
       </div>
+
+      {showTrailer && trailerKey && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="relative">
+            <iframe
+              width="800"
+              height="450"
+              src={`https://www.youtube.com/embed/${trailerKey}`}
+              allowFullScreen
+              className="rounded-lg"
+            />
+
+            <button
+              onClick={() => setShowTrailer(false)}
+              className="absolute -top-4 -right-4 bg-white text-black rounded-full px-3 py-1"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   ) : (
