@@ -275,50 +275,172 @@ const sendBookingConfirmationEmail = inngest.createFunction(
 //   }
 // );
 
+// const sendShowReminders = inngest.createFunction(
+//   {
+//     id: "send-show-reminders",
+//     triggers: [{ cron: "* * * * *" }],
+//   },
+//   async ({ step }) => {
+
+//     const result = await step.run("force-send-test-email", async () => {
+
+//       // get ANY show
+//       const show = await Show.findOne().populate("movie");
+
+//       if (!show) {
+//         console.log("No show found");
+//         return { sent: 0 };
+//       }
+
+//       // get ANY user
+//       const user = await User.findOne();
+
+//       if (!user) {
+//         console.log("No user found");
+//         return { sent: 0 };
+//       }
+
+//       console.log("Sending test email to:", user.email);
+
+//       await sendEmail({
+//         to: user.email,
+//         subject: `TEST Reminder: "${show.movie?.title}"`,
+//         body: `
+//           <h2>Hello ${user.name}</h2>
+//           <p>This is a TEST reminder email.</p>
+//           <p>Movie: ${show.movie?.title}</p>
+//           <p>Time: ${new Date(show.showDateTime).toLocaleString()}</p>
+//         `,
+//       });
+
+//       return { sent: 1 };
+//     });
+
+//     return result;
+//   }
+// );
+
+
 const sendShowReminders = inngest.createFunction(
   {
     id: "send-show-reminders",
-    triggers: [{ cron: "* * * * *" }],
+    triggers: [{ cron: "* * * * *" }], // runs every minute (for testing purposes)
+    // change to "0 */8 * * *" later if you REALLY want every 8 hours
   },
   async ({ step }) => {
+    const now = new Date();
 
-    const result = await step.run("force-send-test-email", async () => {
+    // target = 8 hours before show
+    // const in8Hours = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const in8Hours = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutes
 
-      // get ANY show
-      const show = await Show.findOne().populate("movie");
+    const windowStart = new Date(in8Hours.getTime() - 10 * 60 * 1000);
+    const windowEnd = new Date(in8Hours.getTime() + 10 * 60 * 1000);
+    // showDateTime = new Date(Date.now() + 2 * 60 * 1000)
 
-      if (!show) {
-        console.log("No show found");
-        return { sent: 0 };
+    // STEP 1: find relevant shows
+    const reminderTasks = await step.run(
+      "prepare-reminder-tasks",
+      async () => {
+        const shows = await Show.find({
+          showDateTime: { $gte: windowStart, $lte: windowEnd },
+        }).populate("movie");
+
+        const tasks = [];
+
+        for (const show of shows) {
+          if (!show.movie || !show.occupiedSeats) continue;
+
+          const userIds = [
+            ...new Set(Object.values(show.occupiedSeats)),
+          ];
+
+          if (userIds.length === 0) continue;
+
+          const users = await User.find({
+            _id: { $in: userIds },
+          }).select("name email");
+
+          for (const user of users) {
+            tasks.push({
+              userEmail: user.email,
+              userName: user.name,
+              movieTitle: show.movie.title,
+              showDateTime: show.showDateTime, // ✅ FIXED
+            });
+          }
+        }
+
+        return tasks;
       }
+    );
 
-      // get ANY user
-      const user = await User.findOne();
+    console.log("Reminder function triggered");
+    console.log("Window:", windowStart, windowEnd);
+    console.log("Tasks found:", reminderTasks.length);
 
-      if (!user) {
-        console.log("No user found");
-        return { sent: 0 };
-      }
+    if (reminderTasks.length === 0) {
+      return { sent: 0, message: "No reminders to send." };
+    }
 
-      console.log("Sending test email to:", user.email);
+    // STEP 2: send emails
+    const results = await step.run("send-all-reminders", async () => {
+      return await Promise.allSettled(
+        reminderTasks.map((task) =>
+          sendEmail({
+            to: task.userEmail,
+            subject: `Reminder: Your movie "${task.movieTitle}" starts in 8 hours`,
+            body: `
+              <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Hello ${task.userName},</h2>
 
-      await sendEmail({
-        to: user.email,
-        subject: `TEST Reminder: "${show.movie?.title}"`,
-        body: `
-          <h2>Hello ${user.name}</h2>
-          <p>This is a TEST reminder email.</p>
-          <p>Movie: ${show.movie?.title}</p>
-          <p>Time: ${new Date(show.showDateTime).toLocaleString()}</p>
-        `,
-      });
+                <p>This is a reminder for your upcoming movie:</p>
 
-      return { sent: 1 };
+                <h3 style="color: #F84565;">
+                  "${task.movieTitle}"
+                </h3>
+
+                <p>
+                  <strong>Date:</strong>
+                  ${new Date(task.showDateTime).toLocaleDateString("en-US", {
+                    timeZone: "Asia/Kolkata",
+                  })}
+                  <br/>
+                  <strong>Time:</strong>
+                  ${new Date(task.showDateTime).toLocaleTimeString("en-US", {
+                    timeZone: "Asia/Kolkata",
+                  })}
+                </p>
+
+                <p>
+                  It starts in approximately <strong>8 hours</strong>.
+                </p>
+
+                <br/>
+
+                <p>
+                  Enjoy the show! <br/>
+                  From Astevion Hunter Team
+                </p>
+              </div>
+            `,
+          })
+        )
+      );
     });
 
-    return result;
+    const sent = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - sent;
+
+    return {
+      sent,
+      failed,
+      message: `Sent ${sent} reminder(s), ${failed} failed.`,
+    };
   }
 );
+
+
 
 // Inngest Function to send notifications when a new show is added
 const sendNewShowNotifications = inngest.createFunction(
