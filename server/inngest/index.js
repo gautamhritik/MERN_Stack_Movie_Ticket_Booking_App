@@ -156,90 +156,74 @@ const sendShowReminders = inngest.createFunction(
   async ({ step }) => {
     const now = new Date();
 
-    // 🎯 target = shows happening in 8 hours
     const in8Hours = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
     const windowStart = new Date(in8Hours.getTime() - 10 * 60 * 1000);
     const windowEnd = new Date(in8Hours.getTime() + 10 * 60 * 1000);
 
-    // STEP 1: find relevant shows
-    const reminderTasks = await step.run(
-      "prepare-reminder-tasks",
-      async () => {
-        const shows = await Show.find({
-          showDateTime: { $gte: windowStart, $lte: windowEnd },
-        }).populate("movie");
+    const shows = await step.run("prepare-reminder-tasks", async () => {
+      const data = await Show.find({
+        showDateTime: { $gte: windowStart, $lte: windowEnd },
+        reminderSent: false, // ✅ only shows that haven't had reminders sent
+      }).populate("movie");
 
-        console.log("Now:", now);
-        console.log("Target (8h):", in8Hours);
-        console.log("Window:", windowStart, windowEnd);
-        console.log("Shows found:", shows.length);
+      console.log("Now:", now);
+      console.log("Target (8h):", in8Hours);
+      console.log("Window:", windowStart, windowEnd);
+      console.log("Shows found:", data.length);
 
-        const tasks = [];
+      return data;
+    });
 
-        for (const show of shows) {
-          if (!show.movie || !show.occupiedSeats) continue;
-
-          const userIds = [
-            ...new Set(Object.values(show.occupiedSeats)),
-          ];
-
-          if (userIds.length === 0) continue;
-
-          const users = await User.find({
-            id: { $in: userIds },
-          }).select("name email");
-
-          console.log("Users found:", users.length);
-
-          for (const user of users) {
-            tasks.push({
-              userEmail: user.email,
-              userName: user.name,
-              movieTitle: show.movie.title,
-              showDateTime: show.showDateTime,
-            });
-          }
-        }
-
-        return tasks;
-      }
-    );
-
-    console.log("Reminder function triggered");
-    console.log("Tasks found:", reminderTasks.length);
-
-    if (reminderTasks.length === 0) {
+    if (shows.length === 0) {
       return { sent: 0, message: "No reminders to send." };
     }
 
-    // STEP 2: send emails
-    const results = await step.run("send-all-reminders", async () => {
-      return await Promise.allSettled(
-        reminderTasks.map((task) => {
-          console.log("Sending email to:", task.userEmail);
+    let sent = 0;
+    let failed = 0;
+
+    for (const show of shows) {
+      if (!show.movie || !show.occupiedSeats) continue;
+
+      const userIds = [
+        ...new Set(Object.values(show.occupiedSeats)),
+      ];
+
+      if (userIds.length === 0) continue;
+
+      const users = await User.find({
+        id: { $in: userIds }, // ✅ Clerk ID match
+      }).select("name email");
+
+      console.log(`Users found for show ${show._id}:`, users.length);
+
+      if (users.length === 0) continue;
+
+      const results = await Promise.allSettled(
+        users.map((user) => {
+          console.log("Sending email to:", user.email);
 
           return sendEmail({
-            to: task.userEmail,
-            subject: `Reminder: Your movie "${task.movieTitle}" starts in 8 hours`,
+            to: user.email,
+            subject: `Reminder: Your movie "${show.movie.title}" starts in 8 hours`,
             body: `
               <div style="font-family: Arial, sans-serif; padding: 20px;">
-                <h2>Hello ${task.userName},</h2>
+                <h2>Hello ${user.name},</h2>
 
                 <p>This is a reminder for your upcoming movie:</p>
 
                 <h3 style="color: #F84565;">
-                  "${task.movieTitle}"
+                  "${show.movie.title}"
                 </h3>
 
                 <p>
                   <strong>Date:</strong>
-                  ${new Date(task.showDateTime).toLocaleDateString("en-US", {
+                  ${new Date(show.showDateTime).toLocaleDateString("en-US", {
                     timeZone: "Asia/Kolkata",
                   })}
                   <br/>
                   <strong>Time:</strong>
-                  ${new Date(task.showDateTime).toLocaleTimeString("en-US", {
+                  ${new Date(show.showDateTime).toLocaleTimeString("en-US", {
                     timeZone: "Asia/Kolkata",
                   })}
                 </p>
@@ -259,10 +243,19 @@ const sendShowReminders = inngest.createFunction(
           });
         })
       );
-    });
 
-    const sent = results.filter((r) => r.status === "fulfilled").length;
-    const failed = results.length - sent;
+      const successCount = results.filter(r => r.status === "fulfilled").length;
+      const failCount = results.length - successCount;
+
+      sent += successCount;
+      failed += failCount;
+
+      await Show.findByIdAndUpdate(show._id, {
+        reminderSent: true,
+      });
+
+      console.log(`Show ${show._id} marked as reminderSent`);
+    }
 
     console.log(`Emails sent: ${sent}, Failed: ${failed}`);
 
@@ -273,6 +266,136 @@ const sendShowReminders = inngest.createFunction(
     };
   }
 );
+
+
+
+
+
+// const sendShowReminders = inngest.createFunction(
+//   {
+//     id: "send-show-reminders",
+//     triggers: [{ cron: "*/5 * * * *" }], // every 5 minutes
+//   },
+//   async ({ step }) => {
+//     const now = new Date();
+
+//     // 🎯 target = shows happening in 8 hours
+//     const in8Hours = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+
+//     const windowStart = new Date(in8Hours.getTime() - 10 * 60 * 1000);
+//     const windowEnd = new Date(in8Hours.getTime() + 10 * 60 * 1000);
+
+//     // STEP 1: find relevant shows
+//     const reminderTasks = await step.run(
+//       "prepare-reminder-tasks",
+//       async () => {
+//         const shows = await Show.find({
+//           showDateTime: { $gte: windowStart, $lte: windowEnd },
+//         }).populate("movie");
+
+//         console.log("Now:", now);
+//         console.log("Target (8h):", in8Hours);
+//         console.log("Window:", windowStart, windowEnd);
+//         console.log("Shows found:", shows.length);
+
+//         const tasks = [];
+
+//         for (const show of shows) {
+//           if (!show.movie || !show.occupiedSeats) continue;
+
+//           const userIds = [
+//             ...new Set(Object.values(show.occupiedSeats)),
+//           ];
+
+//           if (userIds.length === 0) continue;
+
+//           const users = await User.find({
+//             id: { $in: userIds },
+//           }).select("name email");
+
+//           console.log("Users found:", users.length);
+
+//           for (const user of users) {
+//             tasks.push({
+//               userEmail: user.email,
+//               userName: user.name,
+//               movieTitle: show.movie.title,
+//               showDateTime: show.showDateTime,
+//             });
+//           }
+//         }
+
+//         return tasks;
+//       }
+//     );
+
+//     console.log("Reminder function triggered");
+//     console.log("Tasks found:", reminderTasks.length);
+
+//     if (reminderTasks.length === 0) {
+//       return { sent: 0, message: "No reminders to send." };
+//     }
+
+//     // STEP 2: send emails
+//     const results = await step.run("send-all-reminders", async () => {
+//       return await Promise.allSettled(
+//         reminderTasks.map((task) => {
+//           console.log("Sending email to:", task.userEmail);
+
+//           return sendEmail({
+//             to: task.userEmail,
+//             subject: `Reminder: Your movie "${task.movieTitle}" starts in 8 hours`,
+//             body: `
+//               <div style="font-family: Arial, sans-serif; padding: 20px;">
+//                 <h2>Hello ${task.userName},</h2>
+
+//                 <p>This is a reminder for your upcoming movie:</p>
+
+//                 <h3 style="color: #F84565;">
+//                   "${task.movieTitle}"
+//                 </h3>
+
+//                 <p>
+//                   <strong>Date:</strong>
+//                   ${new Date(task.showDateTime).toLocaleDateString("en-US", {
+//                     timeZone: "Asia/Kolkata",
+//                   })}
+//                   <br/>
+//                   <strong>Time:</strong>
+//                   ${new Date(task.showDateTime).toLocaleTimeString("en-US", {
+//                     timeZone: "Asia/Kolkata",
+//                   })}
+//                 </p>
+
+//                 <p>
+//                   It starts in approximately <strong>8 hours</strong>.
+//                 </p>
+
+//                 <br/>
+
+//                 <p>
+//                   Enjoy the show! <br/>
+//                   From Astevion Hunter Team
+//                 </p>
+//               </div>
+//             `,
+//           });
+//         })
+//       );
+//     });
+
+//     const sent = results.filter((r) => r.status === "fulfilled").length;
+//     const failed = results.length - sent;
+
+//     console.log(`Emails sent: ${sent}, Failed: ${failed}`);
+
+//     return {
+//       sent,
+//       failed,
+//       message: `Sent ${sent} reminder(s), ${failed} failed.`,
+//     };
+//   }
+// );
 
 
 
