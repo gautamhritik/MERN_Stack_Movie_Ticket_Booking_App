@@ -74,7 +74,7 @@ export const addShow = async (req, res) => {
     showsInput.forEach(show => {
       const showDate = show.date;
       show.time.forEach((time) => {
-        const dateTimeString = `${showDate}T${time}`;
+        const dateTimeString = `${showDate}T${time}:00+05:30`;
         showsToCreate.push({
           movie: movieId,
           showDateTime: new Date(dateTimeString),
